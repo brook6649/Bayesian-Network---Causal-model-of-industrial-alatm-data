@@ -1,0 +1,28 @@
+function [score] = score_based_on_sequ3(DAG,Variables,sequ3prob)
+% consider only the first 48 ternary sequences (whose conditional probability > 0.05)
+score = 0;
+conditional_prob = 0.1;
+occurrence = 20;
+logic_index = (sequ3prob.prob > conditional_prob) & (sequ3prob.sequ_occur > occurrence);
+sequ3 = sequ3prob(logic_index,:);
+% calculate the score according to the best 1 ternary alarm sequences(their occurrence and conditional probability)
+for qq1 = 1:height(sequ3)
+% the three causally sorted alarms in a sequence: sequ3prob{qq1,6} sequ3prob{qq1,7} sequ3prob{qq1,4}     
+    alarm_1 = sequ3.sequ2_ID1(qq1);
+    idx_alarm1 = find(Variables==alarm_1);
+    alarm_2 = sequ3.sequ2_ID2(qq1);
+    idx_alarm2 = find(Variables==alarm_2);
+    alarm_3 = sequ3.single_ID(qq1);
+    idx_alarm3 = find(Variables==alarm_3);
+    % alarm_1 is parent of alarm_2
+    logic_1 = DAG(idx_alarm1,idx_alarm2)==1;
+    % either alarm_1 or alarm_2 is parent of alarm_3
+    logic_2 = (DAG(idx_alarm2,idx_alarm3)==1) | (DAG(idx_alarm1,idx_alarm3)==1);
+    % the ternary sequence is represent in this DAG
+    if logic_1 && logic_2
+        score = score + sequ3{qq1,1}*sequ3{qq1,2};
+    end     
+end
+
+
+end

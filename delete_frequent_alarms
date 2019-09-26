@@ -1,0 +1,45 @@
+function [sequ2prob,sequ3prob,sequ4prob] = delete_frequent_alarms(sequ2prob,sequ3prob,sequ4prob,alarmSet)
+% sequ2prob
+logic_1 = zeros(height(sequ2prob),1);
+logic_2 = zeros(height(sequ2prob),1);
+
+for jj1 = 1:height(sequ2prob)
+    logic_1(jj1) = any( sequ2prob.ID_1(jj1) == alarmSet, 2);
+    logic_2(jj1) = any( sequ2prob.ID_2(jj1) == alarmSet, 2);
+end
+logic = logic_1 | logic_2;
+sequ2prob(logic,:) = [];
+clear logic
+
+% sequ3prob
+logic_3 = zeros(height(sequ3prob),1);
+logic_4 = zeros(height(sequ3prob),1);
+logic_5 = zeros(height(sequ3prob),1);
+
+for jj2 = 1:height(sequ3prob)
+    logic_3(jj2) = any( sequ3prob.sequ2_ID1(jj2)==alarmSet, 2);
+    logic_4(jj2) = any( sequ3prob.sequ2_ID2(jj2)==alarmSet, 2);
+    logic_5(jj2) = any( sequ3prob.single_ID(jj2)==alarmSet, 2);
+end
+logic = logic_3 | logic_4 | logic_5;
+sequ3prob(logic,:) = [];
+clear logic 
+
+
+% sequ4prob
+logic_6 = zeros(height(sequ4prob),1);
+logic_7 = zeros(height(sequ4prob),1);
+logic_8 = zeros(height(sequ4prob),1);
+logic_9 = zeros(height(sequ4prob),1);
+
+for jj3 = 1:height(sequ4prob)
+    logic_6(jj3) = any( sequ4prob.sequ3_ID1(jj3)==alarmSet, 2);
+    logic_7(jj3) = any( sequ4prob.sequ3_ID2(jj3)==alarmSet, 2);
+    logic_8(jj3) = any( sequ4prob.sequ3_ID3(jj3)==alarmSet, 2);
+    logic_9(jj3) = any( sequ4prob.single_ID(jj3)==alarmSet, 2);
+end
+logic = logic_6 | logic_7 | logic_8 | logic_9;
+sequ4prob(logic,:) = [];
+
+
+end

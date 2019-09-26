@@ -1,0 +1,33 @@
+function [opt_DAG,score] = search_based_on_sequ2(Variables,sequ2prob,sequ3prob)
+
+% number of variables in data set
+n = length(Variables);
+opt_DAG = zeros(n);
+DAG = zeros(n);
+max_score = 0;
+score = zeros(1,height(sequ2prob));
+qq1 = 1;
+
+conditional_prob = 0.25;
+occurrence = 700;
+logic_index = (sequ2prob.prob > conditional_prob) & (sequ2prob.sequ_occur > occurrence);
+sequ2 = sequ2prob(logic_index,:);
+while qq1 <= height(sequ2)
+   alarm_1 = sequ2.ID_1(qq1);
+   idx_alarm1 = find(Variables==alarm_1);
+   alarm_2 = sequ2.ID_2(qq1);
+   idx_alarm2 = find(Variables==alarm_2);
+   
+   % add an edge that direct from alarm_1 to alarm_2
+   DAG(idx_alarm1,idx_alarm2) = 1;
+   
+   score(qq1) = score_based_on_sequ3(DAG,Variables,sequ3prob);
+   % find a better score
+   if score(qq1) > max_score
+       max_score = score(qq1);
+       opt_DAG = DAG;
+   end
+   qq1 = qq1 + 1;
+end
+
+end

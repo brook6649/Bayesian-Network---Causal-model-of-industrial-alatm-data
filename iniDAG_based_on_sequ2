@@ -1,0 +1,24 @@
+function [DAG] = iniDAG_based_on_sequ2(Variables,sequ2prob)
+% generate different initial DAG based on binary sequences
+% Changing the value of 'condi_prob' and 'occur' can produce different initial DAGs
+
+% number of variables in data set
+n = length(Variables);
+DAG = zeros(n);
+qq1 = 1;
+condi_prob = 0.08;
+occurrence = 30;
+logic_index = (sequ2prob.prob > condi_prob) & (sequ2prob.sequ_occur > occurrence);
+sequ2 = sequ2prob(logic_index,:);
+while qq1 <= height(sequ2)
+   alarm_1 = sequ2.ID_1(qq1);
+   idx_alarm1 = find(Variables==alarm_1);
+   alarm_2 = sequ2.ID_2(qq1);
+   idx_alarm2 = find(Variables==alarm_2);
+   
+   % add an edge that direct from alarm_1 to alarm_2
+   DAG(idx_alarm1,idx_alarm2) = 1;
+   qq1 = qq1 + 1;
+end
+
+end

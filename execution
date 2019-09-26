@@ -1,0 +1,104 @@
+%% cauculate conditionall probability of sequence with length == 2
+% P(A|B) = P(A,B)/P(B) = P(AB)/sum( P(B|alarms) )
+
+sequ2prob = sequ2prob_5;
+for i = 1:height(sequ2prob)
+    B = sequ2prob.ID_2;
+    index = sequ2prob.ID_2(i) == B;
+    total_B = sum(sequ2prob{index,1});
+    sequ2prob{i,2} = sequ2prob{i,1}/total_B;
+end
+sequ2prob = sortrows(sequ2prob,3,'descend');
+
+%% cauculate conditionall probability of sequence with length == 3
+
+for j = 1:height(sequ3prob)
+    B = sequ3prob.single_ID;
+    index = sequ3prob.single_ID == B(j);
+    total_B = sum(sequ3prob{index,2});
+    sequ3prob{j,1} = sequ3prob{j,2}/total_B;
+end
+sequ3prob = sortrows(sequ3prob,[2,1],'descend');
+
+
+
+
+
+%% initialize a vacant DAG 
+
+
+% Variables = [510224 510231 510225 510227 510226 510221 510216 510117 702425];
+% Variables = [510227 510226 510221 510216 510117 702425];
+Variables = [510227,510226,510221,510216,510117,702425];
+[ini_DAG] = iniDAG_based_on_sequ2(Variables,sequ2prob);
+
+
+% DAG after search over the space of binary sequences
+[DAG,score] = search_based_on_sequ2(Variables,sequ2prob,sequ3prob);
+
+% nodes_ID = {'510224' '510231' '510225' '510227' '510226' '510221' '510216' '510117' '702425'};
+% nodes_ID = {'510227' '510226' '510221' '510216' '510117' '702425'};
+node_ID = {'510227' '510226' '510221' '510216' '510117' '702425'};
+view(biograph(DAG,nodes_ID))
+
+
+
+
+%% delete [510224 510231 510225] due to their disturbance
+sequ2prob = sequ2prob_5;
+alarmSet = [510224 510231 510225];
+[sequ2prob,sequ3prob,sequ4prob] = delete_frequent_alarms(sequ2prob,sequ3prob,sequ4prob,alarmSet);
+
+%% Filter alarmSET
+sequ2prob_part = sequ2prob_5;
+alarmSet = [510227 510226 510221 510216 510117 702425];
+
+idx = zeros(height(sequ2prob_part),1);
+for zz1 = 1:height(sequ2prob_part)
+    if any(sequ2prob_5.ID_1(zz1) == alarmSet) && any(sequ2prob_5.ID_2(zz1) == alarmSet) 
+        idx(zz1) = 1;
+    end
+end
+sequ2prob_part(idx==0,:) = [];
+
+%% calculate conditional probability of alarm sequences
+
+% sequ2
+
+for iii = 1:height(sequ2prob_part)
+    
+    raised_alarm = sequ2prob_part.ID_2(iii);
+    index = sequ2prob_part.ID_2 == raised_alarm;
+    sequ2prob_part{iii,2} = sequ2prob_part{iii,3}/sum(sequ2prob_part.sequ_occur(index));
+    
+end
+
+% sequ3
+
+for iii = 1:height(sequ3prob)
+    
+    raised_alarm = sequ3prob.single_ID(iii);
+    index = sequ3prob.single_ID == raised_alarm;
+    sequ3prob{iii,1} = sequ3prob{iii,2}/sum(sequ3prob.sequ_occur(index));
+    
+end
+
+% sequ4
+
+for iii = 1:height(sequ4prob)
+    
+    raised_alarm = sequ4prob.single_ID(iii);
+    index = sequ4prob.single_ID == raised_alarm;
+    sequ4prob{iii,1} = sequ4prob{iii,2}/sum(sequ4prob.sequ_occur(index));
+    
+end
+
+% sequ5
+
+for iii = 1:height(sequ5prob)
+    
+    raised_alarm = sequ5prob.single_ID(iii);
+    index = sequ5prob.single_ID == raised_alarm;
+    sequ5prob{iii,1} = sequ5prob{iii,2}/sum(sequ5prob.sequ_occur(index));
+    
+end
