@@ -1,0 +1,48 @@
+function sequ_time = sequ_time_fixed(T)
+% find sequences within fixed timespan
+
+timespan = datenum(minutes(8));
+% number of time spans along the whole datenum duration
+n_sequ = ceil( ( T.datenum(end) - T.datenum(1) ) / timespan );
+
+sequ_time = zeros(n_sequ,50);
+
+t_vector = T.datenum(1):timespan:T.datenum(end);
+t_vector(end+1) = t_vector(end) + timespan;
+
+for ii = 1:n_sequ
+    % save a column vector in a row vector
+    sequ = T.FehlerID( T.datenum >= t_vector(ii) & T.datenum < t_vector(ii+1) ).';
+    n_alarms = length( sequ );
+    % row index of the found identical sequence
+    idx = all(sequ_time(:,2:n_alarms+2) == [sequ,0], 2);
+    if any( idx )
+        sequ_time( idx, 1) = sequ_time(idx, 1) + 1;
+    else
+        sequ_time(ii,2:n_alarms+1) = sequ;
+        sequ_time(ii,1) = 1;
+    end
+end
+
+% transfer repeating sequences [A A B]/[A A A B] to [A B] ....
+% delete [A A]/[A A A] ....
+
+for qq = 1:n_sequ
+    
+    if length( unique( sequ_time(qq,2:end) ) ) == 1   % there is only one unique alarmID in this sequence
+        sequ_time(qq,:) = 0;
+        
+    elseif sum( sequ_time(qq,2:end) == sequ_time(qq,2) ) > 1
+        % how many repeated alarmID at the beginning of this sequence
+        n_repeatID = sum( sequ_time(qq,2:end) == sequ_time(qq,2) );
+        % delete all excessive alarms and reserve only one alarm at the beginning of this sequence
+        len = sum( sequ_time(qq,2:end)~=0 );
+        sequ_time( qq, 2 : len-(n_repeatID-1)+1 ) = sequ_time( qq, 2+(n_repeatID-1) : len+1 );
+    end
+      
+end
+
+% delete 'empty' and 'length ==1' sequences
+sequ_time( sequ_time(:,3) == 0, :) = [];
+
+end
