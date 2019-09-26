@@ -1,0 +1,160 @@
+function [sequOrig,sequ2prob,sequAllTimespan,sequLength] = findBinarySequ(T,F)
+% find all binary sequ in dataset without overlap of timespan
+FehlerIDs = T.FehlerID;
+dateNums = T.datenum;
+
+timespan = datenum(minutes(10));
+% number of time spans along the whole datenum duration
+nTimespan = ceil( ( dateNums(end) - dateNums(1) ) / timespan );
+
+% time vector that defines the time spans
+tVector = dateNums(1):timespan:dateNums(end);
+tVector(end+1) = tVector(end) + timespan;
+
+alarmIDs = F.FehlerID(F.occurrence >= 5);
+nAlarmIDs = length(alarmIDs);
+
+% create empty array for "sequ2prob"
+sequOrig = double.empty(0,7);
+
+% find sequ in each timespans
+sequAllTimespan = zeros(length(nTimespan),45);
+sequLength = zeros(length(nTimespan));
+for ii = 1:nTimespan
+    sequence = FehlerIDs( dateNums >= tVector(ii) & dateNums < tVector(ii+1) ).';
+    sequLength(ii) = length(sequence); 
+    sequAllTimespan(ii,1:sequLength(ii)) = sequence;
+end
+
+
+
+% the first alarmID of sequ (length ==2)
+for qq1 = 1:nAlarmIDs
+    % the second alarmID of sequ (length ==2)
+    numRow = size(sequOrig,1);
+    sequOrig(numRow+1:numRow+nAlarmIDs-1,2) = alarmIDs(qq1);
+    sequOrig(numRow+1:numRow+nAlarmIDs-1,1) = 0;    % first column: occurrence
+    secAlarmIDs = alarmIDs;
+    secAlarmIDs(qq1) = [];
+    for qq2 = 1:nAlarmIDs-1
+        sequOrig(numRow+qq2,3) = secAlarmIDs(qq2);
+        % for each time span
+        for qq3 = 1:nTimespan
+            sequ = sequAllTimespan( qq3,1:sequLength(qq3) );   % costs most of time
+            % sequ2prob(numRow+qq2,2:3) is the alarm sequ (length==2) in this row
+            firAlaIdx = find( sequ == sequOrig(numRow+qq2,2) );
+            numFirAla = length(firAlaIdx);
+            secAlaIdx = find( sequ == sequOrig(numRow+qq2,3) );
+            numSecAla = length(secAlaIdx);
+            if qq3 < nTimespan
+                % variables "...Next" are of the following adjacent timsspan
+                sequNext = sequAllTimespan( qq3+1,1:sequLength(qq3+1) );   % costs most of time
+                firAlaIdxNext = find( sequNext == sequOrig(numRow+qq2,2) );
+                numFirAlaNext = length(firAlaIdxNext);
+                secAlaIdxNext = find( sequNext == sequOrig(numRow+qq2,3) );
+                numSecAlaNext = length(secAlaIdxNext);
+            end
+            if numFirAla > 0 && numSecAla > 0     % the first and the second alarmID can be found in this timespan
+                for qq4 = 1:numFirAla
+                    % find sequence
+                    if qq4 < numFirAla
+                        if any( secAlaIdx > firAlaIdx(qq4) & secAlaIdx < firAlaIdx(qq4+1) )
+                            sequOrig(numRow+qq2,1) = sequOrig(numRow+qq2,1) + 1;
+                        end
+                    else  % qq4 == numFirAla
+                        if any( secAlaIdx > firAlaIdx(qq4) )
+                            sequOrig(numRow+qq2,1) = sequOrig(numRow+qq2,1) + 1;
+                        end
+                    end
+                end
+                % identity [A B] for this case: [[A C B] [A D F] "A]    [D B" [A C F B]...]
+                % [A B] is separated by timespan & A in former timespans  and B in later timespans
+                if firAlaIdx(end) > secAlaIdx(end)
+                    if numFirAlaNext > 0 && numSecAlaNext > 0 && secAlaIdxNext(1) < firAlaIdxNext(1)
+                        sequOrig(numRow+qq2,1) = sequOrig(numRow+qq2,1) + 1;
+                    end
+                    
+                    if numFirAlaNext == 0 && numSecAlaNext > 0
+                        sequOrig(numRow+qq2,1) = sequOrig(numRow+qq2,1) + 1;
+                    end
+                end
+                %{
+                % identify [A B] for this case: [... "A] [...]...[B" [A C B] [A D F] [A E B]]
+                % [A B] is separated by timespan & B in former timespans and A in later timespans
+                if firAlaIdx(1) > secAlaIdx(1)
+                    qq5 = 1;
+                    numFirAlaBefore = 0;
+                    while numFirAlaBefore == 0 && qq5 <= 3 && qq5 < qq3   % only search for the 3 former adjacent timespans
+                        % "...Before": variables of former timespans
+                        sequBefore = FehlerIDs( dateNums >= tVector(qq3-qq5) & dateNums < tVector(qq3-qq5+1) ).';   % costs most of time
+                        firAlaIdxBefore = find( sequBefore == sequOrig(numRow+qq2,2) );
+                        numFirAlaBefore = length(firAlaIdxBefore);
+                        secAlaIdxBefore = find( sequBefore == sequOrig(numRow+qq2,3) );
+                        numSecAlaBefore = length(secAlaIdxBefore);
+                        if (numSecAlaBefore >= 1 && numFirAlaBefore >= 1) && firAlaIdxBefore(end) > secAlaIdxBefore(end)
+                            sequOrig(numRow+qq2,1) = sequOrig(numRow+qq2,1) + 1;
+                        elseif (numSecAlaBefore == 0 && numFirAlaBefore >= 1)
+                            sequOrig(numRow+qq2,1) = sequOrig(numRow+qq2,1) + 1;
+                        end
+                        qq5 = qq5 + 1;
+                    end
+                end
+                
+            elseif numFirAla == 0 && numSecAla >= 1   % only the second alarmID can be found in this timespan
+                qq6 = 1;
+                numFirAlaBefore = 0;
+                while numFirAlaBefore == 0 && qq6 <= 3 && qq6 < qq3    % only search for the 3 former adjacent timespans
+                    % "...Before": variables of former timespans
+                    sequBefore = FehlerIDs( dateNums >= tVector(qq3-qq6) & dateNums < tVector(qq3-qq6+1) ).';   % costs most of time
+                    firAlaIdxBefore = find( sequBefore == sequOrig(numRow+qq2,2) );
+                    numFirAlaBefore = length(firAlaIdxBefore);
+                    secAlaIdxBefore = find( sequBefore == sequOrig(numRow+qq2,3) );
+                    numSecAlaBefore = length(secAlaIdxBefore);
+                    if (numSecAlaBefore >= 1 && numFirAlaBefore >= 1) && firAlaIdxBefore(end) > secAlaIdxBefore(end)
+                        sequOrig(numRow+qq2,1) = sequOrig(numRow+qq2,1) + 1;
+                    elseif (numSecAlaBefore == 0 && numFirAlaBefore >= 1)
+                        sequOrig(numRow+qq2,1) = sequOrig(numRow+qq2,1) + 1;
+                    end
+                    qq6 = qq6 + 1;
+                end
+                %}
+            elseif numFirAla >= 1 && numSecAla == 0   % only the first alarmID can be found in this timespan
+                if numFirAlaNext > 0 && numSecAlaNext > 0 && secAlaIdxNext(1) < firAlaIdxNext(1)
+                    sequOrig(numRow+qq2,1) = sequOrig(numRow+qq2,1) + 1;
+                end
+                
+                if numFirAlaNext == 0 && numSecAlaNext > 0
+                    sequOrig(numRow+qq2,1) = sequOrig(numRow+qq2,1) + 1;
+                end
+            end
+        end
+    end
+end
+
+% probability and dependency
+
+sequ2prob = sequOrig;
+sequ2prob( sequ2prob(:,1)==0,:) = [];
+sequ2prob(:,3:5) = sequ2prob(:,1:3);
+for qq1 = 1:size(sequ2prob,1)
+    % 4.th column: probability
+    sequ2prob(qq1,2) = sequ2prob(qq1,3)/sum( sequ2prob(:,3) );
+    
+%     % 5.th column: causal dependence of the two alarms in a sequence
+%     % for instance: The dependence of B on A of sequence [A B]
+%     % is acquaired through dividing all occurrences of [A B] [C B] [D B] [E B] .... by occurrence of [A B]
+%     sequ2prob(qq1,1) = sequ2prob(qq1,3)/sum( sequ2prob( sequ2prob(:,5) == sequ2prob(qq1,5),3 ) );
+    
+    % occurrence of a single alarmID
+    sequ2prob(qq1,6) = F.occurrence(sequ2prob(qq1,4) == F.FehlerID);
+    sequ2prob(qq1,7) = F.occurrence(sequ2prob(qq1,5) == F.FehlerID);
+end
+
+sequ2prob = sortrows(sequ2prob, [3,1] ,'descend');
+sequ2prob = array2table(sequ2prob);
+sequ2prob.Properties.VariableNames = {'causal_dep' 'prob' 'sequ_occur' 'ID_1' 'ID_2'...
+    'occur_ID1' 'occur_ID2'};
+
+
+
+end

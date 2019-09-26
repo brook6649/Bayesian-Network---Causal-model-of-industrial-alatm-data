@@ -1,0 +1,295 @@
+function [sequ5prob,sequ4prob_part] = findPentaSequ(F,sequ4prob_part,sequAllTimespan,sequLength,alarmIDNum)
+% find all quadra-sequ (length==4) in dataset based on previously found (length==3) sequ
+
+% sort out expected basic sequ (length==3)
+alarmSet = F.FehlerID(1:alarmIDNum);
+idx1 = zeros(height(sequ4prob_part),1);
+for zz1 = 1:height(sequ4prob_part)
+    if any(sequ4prob_part.single_ID(zz1) == alarmSet)  % IDs of all sequ2 are inside the top 9 alarmIDs.
+        idx1(zz1) = 1;                            % Here we only need to test if the third ID also belongs to this range.
+    end
+end
+sequ4prob_part(idx1==0,:) = [];
+
+sequ4ID = max(sequ4prob_part.sequ_ID) + 1;
+
+alarmIDs = F.FehlerID(1:alarmIDNum);
+sequ5prob = double.empty(0,9);
+
+% loop for each found (length==2) sequ
+for qq1 = 1:height(sequ4prob_part)         % find triple sequ based on (lenth==2) sequences
+    % add new column "sequID" to "sequ2prob_5"
+    sequ4prob_part.sequID(qq1) = sequ4ID;
+    newSequAllTimespan = sequAllTimespan;
+    lenNewSequ = zeros(size(newSequAllTimespan,1));
+    sequ4 = sequ4prob_part{qq1,[6,7,8,4]};
+    % loop for each timespan
+    for qq2 = 1:size(newSequAllTimespan,1)    % vacant sequ in this timespan
+        if newSequAllTimespan(qq2,1) == 0
+            continue
+        end
+        sequ = newSequAllTimespan( qq2, 1:sequLength(qq2) );
+        firAlaIdx = find( sequ == sequ4(1) );
+        numFirAla = length(firAlaIdx);
+        secAlaIdx = find( sequ == sequ4(2) );
+        numSecAla = length(secAlaIdx);
+        thirdAlaIdx = find( sequ == sequ4(3) );
+        numThirdAla = length(thirdAlaIdx);
+        fourthAlaIdx = find( sequ == sequ4(4) );
+        numFourthAla = length(fourthAlaIdx);
+        if qq2 < size(newSequAllTimespan,1)
+            sequNext = newSequAllTimespan( qq2+1, 1:sequLength(qq2+1) );
+            firAlaIdxNext = find( sequNext == sequ4(1) );
+            numFirAlaNext = length(firAlaIdxNext);
+            secAlaIdxNext = find( sequNext == sequ4(2) );
+            numSecAlaNext = length(secAlaIdxNext);
+            thirdAlaIdxNext = find( sequNext == sequ4(3) );
+            numThirdAlaNext = length(thirdAlaIdxNext);
+            fourthAlaIdxNext = find( sequNext == sequ4(4) );
+            numFourthAlaNext = length(fourthAlaIdxNext);
+        end
+        if numFirAla > 0 && numSecAla > 0 && numThirdAla > 0 && numFourthAla > 0
+            for qq3 = 1:length(numFirAla)
+                if qq3 < length(numFirAla)
+                    % length of 'logicIndex' is the length of 'fourthAlaIdx'
+                    logicIndex = fourthAlaIdx > firAlaIdx(qq3) & fourthAlaIdx < firAlaIdx(qq3+1);
+                    % the index of found third alarmID in this range
+                    FoundFourthAlaIdx = fourthAlaIdx(logicIndex);
+                    rr1 = 0;
+                    while rr1 < length(FoundFourthAlaIdx)
+                        if any(logicIndex) 
+                            logics_1 = secAlaIdx > firAlaIdx(qq3) && secAlaIdx < FoundFourthAlaIdx(rr1+1);
+                            logics_2 = thirdAlaIdx > firAlaIdx(qq3) && thirdAlaIdx < FoundFourthAlaIdx(rr1+1);
+                            logics_3 = secAlaIdx(logics_1) < thirdAlaIdx(logics_2);
+                            if any(logics_1) && any(logics_2) && any(logics_3)
+                                % index of the alarm sequ interval,which should be replaced with new "sequID"
+                                idxInterval(1) = firAlaIdx(qq3);
+                                idxInterval(2) = FoundFourthAlaIdx(rr1+1);
+                                newSequAllTimespan(qq2, idxInterval(1)) = sequ4ID;
+                                newSequAllTimespan(qq2, idxInterval(1)+1:idxInterval(2)) = 0;
+                                break
+                            end
+                        else
+                            rr1 = rr1 + 1;
+                        end
+                    end
+                elseif any( thirdAlaIdx > firAlaIdx(qq3) ) && any( secAlaIdx > firAlaIdx(qq3) ) && any( fourthAlaIdx > firAlaIdx(qq3) )   % here: 'qq3' is the last index, 'qq3' equals 'end'
+                    logicIndex = fourthAlaIdx > firAlaIdx(qq3);
+                    FoundFourthAlaIdx = fourthAlaIdx(logicIndex);
+                    rr2 = 0;
+                    while rr2 < length(FoundFourthAlaIdx)
+                        logics_a = secAlaIdx < FoundFourthAlaIdx(rr2+1);
+                        logics_b = thirdAlaIdx < FoundFourthAlaIdx(rr2+1);
+                        secAlaIdxSequ = secAlaIdx(logics_a);
+                        lengthSecAlaIdxSequ = length(secAlaIdxSequ);
+                        logicValue_1 = 0;
+                        while lengthSecAlaIdxSequ -1 >= 0
+                            logics_c = secAlaIdxSequ(lengthSecAlaIdxSequ) < thirdAlaIdx(logics_b);
+                            if any(logics_c) == 1
+                                logicValue_1 = 1;
+                                break
+                            else
+                                lengthSecAlaIdxSequ = lengthSecAlaIdxSequ - 1;
+                            end
+                        end
+                        if any(logics_a) && any(logics_b) && logicValue_1
+                            % index of the alarm sequ interval,which should be replaced with new "sequID"
+                            idxInterval(1) = firAlaIdx(qq3);
+                            idxInterval(2) = FoundFourthAlaIdx(rr2+1);
+                            newSequAllTimespan(qq2, idxInterval(1)) = sequ4ID;
+                            newSequAllTimespan(qq2, idxInterval(1)+1:idxInterval(2)) = 0;
+                            break
+                        else
+                            rr2 = rr2 + 1;
+                        end
+                        
+                    end
+                end
+            end
+            
+            if firAlaIdx(end) > fourthAlaIdx(end) && qq2 < size(newSequAllTimespan,1)
+                
+                if numFourthAlaNext > 0 && numThirdAlaNext > 0 && numSecAlaNext > 0 && numFirAlaNext > 0
+                    logicIdx_secAla = secAlaIdxNext < firAlaIdxNext(1);
+                    logicIdx_thirdAla = thirdAlaIdxNext < firAlaIdxNext(1);
+                    logicIdx_fourthAla = fourthAlaIdxNext < firAlaIdxNext(1);
+                    FoundFourthAlaIdx = fourthAlaIdxNext(logicIdx_fourthAla);
+                    if any(logicIdx_secAla) && any(logicIdx_thirdAla) && any(logicIdx_fourthAla)  
+                        % index of the alarm sequ interval,which should be replaced with new "sequID"
+                        rr3 = 0;
+                        while rr3 < length(FoundFourthAlaIdx)
+                            logics_aa1 = secAlaIdxNext(logicIdx_secAla) < fourthAlaIdxNext(rr3+1);
+                            logics_aa2 = thirdAlaIdxNext(logicIdx_thirdAla) < fourthAlaIdxNext(rr3+1);
+                            
+                            secAlaIdxSequNext = secAlaIdxNext(logics_aa1);
+                            lengthSecAlaIdxSequNext = length(secAlaIdxSequNext);
+                            logicValue_2 = 0;
+                            while lengthSecAlaIdxSequNext -1 >= 0
+                                logics_aa3 = secAlaIdxSequNext(lengthSecAlaIdxSequNext) < thirdAlaIdxNext(logics_aa2);
+                                if any(logics_aa3) == 1
+                                    logicValue_2 = 1;
+                                    break
+                                else
+                                    lengthSecAlaIdxSequNext = lengthSecAlaIdxSequNext-1;
+                                end
+                            end
+                                     
+                            if any(logics_aa1) && any(logics_aa2) && logicValue_2
+                                % index of the alarm sequ interval,which should be replaced with new "sequID"
+                                idxInterval(1) = firAlaIdx(end);
+                                idxInterval(2) = FoundFourthAlaIdx(rr3+1);
+                                newSequAllTimespan(qq2, idxInterval(1)) = sequ4ID;
+                                newSequAllTimespan(qq2, idxInterval(1)+1:end) = 0;
+                                newSequAllTimespan(qq2+1, 1:idxInterval(2)) = 0;
+                                break
+                            else
+                                rr3 = rr3 + 1;
+                            end
+                        end
+                    end
+                elseif numFirAlaNext==0 && numSecAlaNext > 0 && numThirdAlaNext > 0 && numFourthAlaNext > 0
+                    rr4 = 0;
+                    while rr4 < length(fourthAlaIdxNext)
+                        logic_qq1 = secAlaIdxNext < fourthAlaIdxNext(rr4+1);
+                        logic_qq2 = thirdAlaIdxNext < fourthAlaIdxNext(rr4+1);
+                        
+                        secAlaIdxSequNext = secAlaIdxNext(logic_qq1);
+                        lengthSecAlaIdxSequNext = length(secAlaIdxSequNext);
+                        logicValue_3 = 0;
+                        while lengthSecAlaIdxSequNext -1 >= 0
+                            logic_qq3 = secAlaIdxSequNext(lengthSecAlaIdxSequNext) < thirdAlaIdxNext(logic_qq2);
+                            if any(logic_qq3) == 1
+                                logicValue_3 = 1;
+                                break
+                            else
+                                lengthSecAlaIdxSequNext = lengthSecAlaIdxSequNext - 1;
+                            end
+                        end
+                        
+                        if any(logic_qq1) && any(logic_qq2) && logicValue_3
+                            % index of the alarm sequ interval,which should be replaced with new "sequID"
+                            idxInterval(1) = firAlaIdx(end);
+                            idxInterval(2) = fourthAlaIdxNext(rr4+1);
+                            newSequAllTimespan(qq2, idxInterval(1)) = sequ4ID;
+                            newSequAllTimespan(qq2, idxInterval(1)+1:end) = 0;
+                            newSequAllTimespan(qq2+1, 1:idxInterval(2)) = 0;
+                            break
+                        else
+                            rr4 = rr4 + 1;
+                        end
+                    end
+                end
+            end
+        elseif numFirAla > 0 && numFourthAla == 0 && qq2 < size(newSequAllTimespan,1)
+            if numFourthAlaNext > 0
+                if numSecAla > 0 && numThirdAla > 0
+                    idxInterval(1) = firAlaIdx(end);
+                    idxInterval(2) = fourthAlaIdxNext(1);
+                    newSequAllTimespan(qq2, idxInterval(1)) = sequ4ID;
+                    newSequAllTimespan(qq2, idxInterval(1)+1:end) = 0;
+                    newSequAllTimespan(qq2+1, 1:idxInterval(2)) = 0;
+                elseif numSecAla > 0 && numThirdAla == 0 && numThirdAlaNext > 0
+                    rr5 = 0;
+                    while rr5 < length(fourthAlaIdxNext)
+                        if any(thirdAlaIdxNext < fourthAlaIdxNext(rr5+1))
+                            % index of the alarm sequ interval,which should be replaced with new "sequID"
+                            idxInterval(1) = firAlaIdx(end);
+                            idxInterval(2) = fourthAlaIdxNext(rr5+1);
+                            newSequAllTimespan(qq2, idxInterval(1)) = sequ4ID;
+                            newSequAllTimespan(qq2, idxInterval(1)+1:end) = 0;
+                            newSequAllTimespan(qq2+1, 1:idxInterval(2)) = 0;
+                            break
+                        else
+                            rr5 = rr5 + 1;
+                        end
+                    end
+                elseif numSecAla == 0 && numThirdAla == 0 && numSecAlaNext > 0 && numThirdAlaNext > 0
+                    rr6 = 0;
+                    while rr6 < length(fourthAlaIdxNext)
+                        logic_kk1 = secAlaIdxNext < fourthAlaIdxNext(rr6+1);
+                        logic_kk2 = thirdAlaIdxNext < fourthAlaIdxNext(rr6+1);
+                        
+                        secAlaIdxSequNext = secAlaIdxNext(logic_kk1);
+                        lengthSecAlaIdxSequNext = length(secAlaIdxSequNext);
+                        logicValue_4 = 0;
+                        while lengthSecAlaIdxSequNext - 1 >= 0
+                            logic_kk3 = secAlaIdxSequNext(lengthSecAlaIdxSequNext) < thirdAlaIdxNext(logic_kk2);
+                            if any(logic_kk3) == 1
+                                logicValue_4 = 1;
+                                break
+                            else
+                                lengthSecAlaIdxSequNext = lengthSecAlaIdxSequNext - 1;
+                            end
+                        end
+                        if any(logic_kk1) && any(logic_kk2) && logicValue_4
+                            % index of the alarm sequ interval,which should be replaced with new "sequID"
+                            idxInterval(1) = firAlaIdx(end);
+                            idxInterval(2) = fourthAlaIdxNext(rr6+1);
+                            newSequAllTimespan(qq2, idxInterval(1)) = sequ4ID;
+                            newSequAllTimespan(qq2, idxInterval(1)+1:end) = 0;
+                            newSequAllTimespan(qq2+1, 1:idxInterval(2)) = 0;
+                            break
+                        else
+                            rr6 = rr6 + 1;
+                        end
+                    end
+                    
+                end
+            end
+        end
+        newSequ = newSequAllTimespan(qq2,:);
+        newSequ = newSequ(newSequ~=0);
+        lenNewSequ(qq2) = length(newSequ);
+        newSequAllTimespan(qq2,1:lenNewSequ(qq2)) = newSequ;
+        newSequAllTimespan(qq2,lenNewSequ(qq2)+1:end) = 0;
+    end
+    
+    % find quadra sequ (append another alarmID to the end of new sequIDs)
+    IDs = alarmIDs;
+    IDs( IDs==sequ4(1) | IDs==sequ4(2) | IDs==sequ4(3) | IDs==sequ4(4)) = [];
+    rowNum = size(sequ5prob,1);
+    sequ5prob(rowNum+1:rowNum+length(IDs),:) = sequ5.findNewSequBasedOn4(sequ4ID,IDs,newSequAllTimespan,lenNewSequ);
+   
+    sequ4ID = sequ4ID + 1;
+end
+
+
+% probability and dependency
+
+sequ5prob( sequ5prob(:,1)==0,:) = [];
+sequ5prob(:,2:4) = sequ5prob(:,1:3);
+for qq5 = 1:size(sequ5prob,1)
+    % 4.th column: probability
+    sequ5prob(qq5,1) = sequ5prob(qq5,2)/sum( sequ5prob(:,2) );
+    
+    %     % 5.th column: causal dependence of the two alarms in a sequence
+    %     % for instance: The dependence of B on A of sequence [A B]
+    %     % is acquaired through dividing all occurrences of [A B] [C B] [D B] [E B] .... by occurrence of [A B]
+    %     sequ2prob(qq1,1) = sequ2prob(qq1,3)/sum( sequ2prob( sequ2prob(:,5) == sequ2prob(qq1,5),3 ) );
+    
+    % occurrence of a single alarmID
+    indexLogic = sequ4prob_part.sequID == sequ5prob(qq5,3);
+    sequ5prob(qq5,6) = sequ4prob_part{ indexLogic,6};
+    sequ5prob(qq5,7) = sequ4prob_part{ indexLogic,7};
+    sequ5prob(qq5,8) = sequ4prob_part{ indexLogic,8};
+    sequ5prob(qq5,9) = sequ4prob_part{ indexLogic,4};
+end
+
+
+sequ5prob = array2table(sequ5prob);
+sequ5prob.Properties.VariableNames = {'prob' 'sequ_occur' 'sequ_ID' 'single_ID'...
+    'separator' 'sequ4_ID1' 'sequ4_ID2' 'sequ4_ID3' 'sequ4_ID4'};
+
+% keep only sequences(length==4) whose alarmIDs are all inside of the predifined alarmSet
+idx2 = zeros(height(sequ5prob),1);
+for zz1 = 1:height(sequ5prob)
+    if any(sequ5prob.single_ID(zz1) == alarmSet)
+        idx2(zz1) = 1;
+    end
+end
+sequ5prob(idx2==0,:) = [];
+sequ5prob = sortrows(sequ5prob, [2,3] ,'descend');
+
+
+
+end

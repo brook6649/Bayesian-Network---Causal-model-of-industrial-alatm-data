@@ -1,0 +1,50 @@
+function [T] = deleteChattering(T,F,t)
+
+%% Delete similar alarms reoccuring within time t in minutes (chattering)
+%
+% Input
+% Table T
+% time t in minutes
+%
+% Output
+% Table T
+
+%% %%%%%%%%%%%%%%%%%%%%%
+
+% Check number of inputs
+if nargin < 3 || isempty(t)
+    t = 2;
+end
+
+% T = sortrows(T,'date');
+% T = sortrows(T,'id');
+
+%% Delete similar alarms reoccuring within time t in minutes (chattering)
+tDiff = datenum(minutes(t));
+rDelete = zeros(1,size(T,1));   rDelete = rDelete';
+
+for ii = 1:size(F,1)
+    
+    % All rows of id==i
+    iTemp = find( T.FehlerID == F{ii,1} );
+    
+    for j = length(iTemp):-1:2
+        row_idx = 1:size(T,1);  row_idx = row_idx';
+        
+        rTemp = ( T.FehlerID == F{ii,1} ) & ( T.datenum >= T.datenum(iTemp(j))-tDiff ) & ( T.datenum < T.datenum(iTemp(j)) );
+        if any( iTemp(j) == row_idx(rTemp==1) ) % if this alarm signal is chattering alarm, skip this loop
+            continue
+        elseif strcmp(T.state(iTemp(j)),'Active') && sum(rTemp) >= 1
+            % All rows within tDiff
+            
+            rDelete = rDelete + rTemp;
+            
+        end
+    end
+end
+
+
+T = T(~rDelete,:);
+
+end
+

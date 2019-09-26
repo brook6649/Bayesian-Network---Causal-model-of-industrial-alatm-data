@@ -1,0 +1,146 @@
+function [sequ3prob,sequ2prob] = findTripleSequ(T,F,sequ2prob,sequAllTimespan,sequLength,alarmIDNum)
+% find all triple sequ (length==3) in dataset based on previously found (length==2) sequ
+
+% sort out expected basic sequ (length==2)
+alarmSet = F.FehlerID(1:alarmIDNum);
+idx1 = zeros(height(sequ2prob),1);
+for zz1 = 1:height(sequ2prob)
+    if any(sequ2prob.ID_1(zz1) == alarmSet) && any(sequ2prob.ID_2(zz1) == alarmSet)
+        idx1(zz1) = 1;
+    end
+end
+sequ2prob(idx1==0,:) = [];
+
+sequ2ID = max(T.FehlerID) + 1;
+
+alarmIDs = F.FehlerID(F.occurrence >= 5);
+sequ3prob = double.empty(0,7);
+
+% loop for each found (length==2) sequ
+for qq1 = 1:height(sequ2prob)         % find triple sequ based on (lenth==2) sequences
+    % add new column "sequID" to "sequ2prob_5"
+    sequ2prob.sequID(qq1) = sequ2ID;
+    newSequAllTimespan = sequAllTimespan;
+    lenNewSequ = zeros(size(newSequAllTimespan,1));
+    sequ2 = sequ2prob{qq1,4:5};
+    % loop for each timespan
+    for qq2 = 1:size(newSequAllTimespan,1)
+        sequ = newSequAllTimespan( qq2, 1:sequLength(qq2) );
+        firAlaIdx = find( sequ == sequ2(1) );
+        numFirAla = length(firAlaIdx);
+        secAlaIdx = find( sequ == sequ2(2) );
+        numSecAla = length(secAlaIdx);
+        if qq2 < size(newSequAllTimespan,1)
+            sequNext = newSequAllTimespan( qq2+1, 1:sequLength(qq2+1) );
+            firAlaIdxNext = find( sequNext == sequ2(1) );
+            numFirAlaNext = length(firAlaIdxNext);
+            secAlaIdxNext = find( sequNext == sequ2(2) );
+            numSecAlaNext = length(secAlaIdxNext);
+        end
+        if numFirAla >= 1 && numSecAla >= 1
+            for qq3 = 1:length(numFirAla)
+                if qq3<length(numFirAla) && any( secAlaIdx > firAlaIdx(qq3) && secAlaIdx < firAlaIdx(qq3+1) )
+                    % the index of found second alarmID in this range
+                    foundSecAlaIdx = secAlaIdx(secAlaIdx > firAlaIdx(qq3) && secAlaIdx < firAlaIdx(qq3+1));
+                    % index of the alarm sequ interval,which should be replaced with new "sequID"
+                    idxInterval(1) = firAlaIdx(qq3);
+                    idxInterval(2) = foundSecAlaIdx(1);
+                    newSequAllTimespan(qq2, idxInterval(1)) = sequ2ID;
+                    newSequAllTimespan(qq2, idxInterval(1)+1:idxInterval(2)) = 0;
+                elseif qq3 == length(numFirAla) && any( secAlaIdx > firAlaIdx(qq3) )
+                    % the index of found second alarmID in this range
+                    foundSecAlaIdx = secAlaIdx(secAlaIdx > firAlaIdx(qq3));
+                    % index of the alarm sequ interval,which should be replaced with new "sequID"
+                    idxInterval(1) = firAlaIdx(qq3);
+                    idxInterval(2) = foundSecAlaIdx(1);
+                    newSequAllTimespan(qq2, idxInterval(1)) = sequ2ID;
+                    newSequAllTimespan(qq2, idxInterval(1)+1:idxInterval(2)) = 0;
+                end
+            end
+            
+            if firAlaIdx(end) > secAlaIdx(end) && qq2 < size(newSequAllTimespan,1)
+                
+                if numSecAlaNext > 0 &&  numFirAlaNext > 0 && secAlaIdxNext(1) < firAlaIdxNext(1)
+                    % index of the alarm sequ interval,which should be replaced with new "sequID"
+                    idxInterval(1) = firAlaIdx(end);
+                    idxInterval(2) = secAlaIdxNext(1);
+                    newSequAllTimespan(qq2, idxInterval(1)) = sequ2ID;
+                    newSequAllTimespan(qq2, idxInterval(1)+1:end) = 0;
+                    newSequAllTimespan(qq2+1, 1:idxInterval(2)) = 0;
+                elseif numFirAlaNext==0 && numSecAlaNext > 0
+                    % index of the alarm sequ interval,which should be replaced with new "sequID"
+                    idxInterval(1) = firAlaIdx(end);
+                    idxInterval(2) = secAlaIdxNext(1);
+                    newSequAllTimespan(qq2, idxInterval(1)) = sequ2ID;
+                    newSequAllTimespan(qq2, idxInterval(1)+1:end) = 0;
+                    newSequAllTimespan(qq2+1, 1:idxInterval(2)) = 0;
+                end
+            end
+        elseif numFirAla >= 1 && numSecAla == 0 && qq2 < size(newSequAllTimespan,1)
+            
+            if numSecAlaNext > 0 &&  numFirAlaNext > 0 && secAlaIdxNext(1) < firAlaIdxNext(1)
+                % index of the alarm sequ interval,which should be replaced with new "sequID"
+                idxInterval(1) = firAlaIdx(end);
+                idxInterval(2) = secAlaIdxNext(1);
+                newSequAllTimespan(qq2, idxInterval(1)) = sequ2ID;
+                newSequAllTimespan(qq2, idxInterval(1)+1:end) = 0;
+                newSequAllTimespan(qq2+1, 1:idxInterval(2)) = 0;
+            elseif numFirAlaNext==0 && numSecAlaNext > 0
+                % index of the alarm sequ interval,which should be replaced with new "sequID"
+                idxInterval(1) = firAlaIdx(end);
+                idxInterval(2) = secAlaIdxNext(1);
+                newSequAllTimespan(qq2, idxInterval(1)) = sequ2ID;
+                newSequAllTimespan(qq2, idxInterval(1)+1:end) = 0;
+                newSequAllTimespan(qq2+1, 1:idxInterval(2)) = 0;
+            end
+        end
+        newSequ = newSequAllTimespan(qq2,:);
+        newSequ = newSequ(newSequ~=0);
+        lenNewSequ(qq2) = length(newSequ);
+        newSequAllTimespan(qq2,1:lenNewSequ(qq2)) = newSequ;
+        newSequAllTimespan(qq2,lenNewSequ(qq2)+1:end) = 0;
+    end
+    
+    % find triple sequ (append another alarmID to the end of new sequIDs)
+    IDs = alarmIDs;
+    IDs( IDs==sequ2(1) | IDs==sequ2(2) ) = [];
+    rowNum = size(sequ3prob,1);
+    sequ3prob(rowNum+1:rowNum+length(IDs),:) = sequ3.findNewSequBasedOn2(sequ2ID,IDs,newSequAllTimespan,lenNewSequ);
+    
+    sequ2ID = sequ2ID + 1;
+end
+
+
+% probability and dependency
+
+sequ3prob( sequ3prob(:,1)==0,:) = [];
+sequ3prob(:,2:4) = sequ3prob(:,1:3);
+for qq5 = 1:size(sequ3prob,1)
+    % 4.th column: probability
+    sequ3prob(qq5,1) = sequ3prob(qq5,2)/sum( sequ3prob(:,2) );
+    
+    %     % 5.th column: causal dependence of the two alarms in a sequence
+    %     % for instance: The dependence of B on A of sequence [A B]
+    %     % is acquaired through dividing all occurrences of [A B] [C B] [D B] [E B] .... by occurrence of [A B]
+    %     sequ2prob(qq1,1) = sequ2prob(qq1,3)/sum( sequ2prob( sequ2prob(:,5) == sequ2prob(qq1,5),3 ) );
+    
+    % occurrence of a single alarmID
+    sequ3prob(qq5,6) = sequ2prob{ sequ3prob(qq5,3) == sequ2prob.sequID,4};
+    sequ3prob(qq5,7) = sequ2prob{ sequ3prob(qq5,3) == sequ2prob.sequID,5};
+end
+
+
+sequ3prob = array2table(sequ3prob);
+sequ3prob.Properties.VariableNames = {'prob' 'sequ_occur' 'sequ_ID' 'single_ID'...
+    'separator' 'sequ2_ID1' 'sequ2_ID2'};
+
+% keep only sequences(length==3) whose alarmIDs are all inside of the predifined alarmSet
+idx2 = zeros(height(sequ3prob),1);
+for zz1 = 1:height(sequ3prob)
+    if any(sequ3prob.single_ID(zz1) == alarmSet) 
+        idx2(zz1) = 1;
+    end
+end
+sequ3prob(idx2==0,:) = [];
+sequ3prob = sortrows(sequ3prob, [2,3] ,'descend');
+end

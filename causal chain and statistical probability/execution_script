@@ -1,0 +1,132 @@
+% data preperation 15.10.2018 Dongyu Jiang
+%% data preprocess
+load alarmDaten_g5501071.mat
+
+%integrate g5501071,g5501072,g5501073 into one table
+%{
+T1 = load('alarmDaten_g5501071.mat');
+T2 = load('alarmDaten_g5501072.mat');
+T3 = load('alarmDaten_g5501073.mat');
+T = {T1;T2;T3};
+%}
+
+
+% delete rows with FehlerID == 1 (invalid alarms)
+T(T.FehlerID==1,:) = [];
+% remain only "Error" notifications
+% T = T(strcmp(T.type,'Error'),:);
+% add a column to the table T, whichs contains datenum values
+T = datenumTable(T);
+
+
+
+%% 1.Column: unique alarm ID;  2. column: frequency of occurrence
+% 'F' represents 'frequency'
+F = unique(T.FehlerID);
+
+
+
+for iii = 1:length(F)
+    
+    F(iii,2) = length( find( T.FehlerID == F(iii) ) );
+    
+end
+
+F = array2table(F);
+F.Properties.VariableNames  = {'FehlerID' 'occurrence'};
+F = sortrows(F,'occurrence','descend');
+
+
+% delete chattering alarms
+T = deleteChattering(T,F);
+
+%% generate matrix "sequ_freq" using "hirarchicBasedSequ"
+% 'S0': all unique alarm ID in one vector
+S0 = T.FehlerID;
+
+% minimal occurrence of sequence that need to be taken into account
+OccurMin = 2;
+
+% execute the recursive calculation process to find occurrences of alarm sequences
+[S,nS] = hirarchicBasedSequ(S0,OccurMin);
+
+sequ_freq = [nS,S];
+
+% calculate probability of sequences with length 2
+
+% extract sequences with length 2
+sequ2 = sequ_freq( sequ_freq(:,4)==0, 1:3 );
+prob = zeros(size(sequ2,1),4);
+prob(:,1) = sequ2(:,1);
+prob(:,3:4) = sequ2(:,2:3);
+sum_occ = sum(sequ2(:,1));
+prob(:,2) = prob(:,1)/sum_occ;
+
+prob = array2table(prob);
+prob.Properties.VariableNames = {'occurrence' 'probability' 'FehlerID_1' 'FehlerID_2'};
+
+%{
+% alarm sequence in timespan after 'starttime' (overlaps of timespans exist)
+
+
+sequ_time = sequ_time_overlap( T, F );     
+sequ_length = 10;          % 10 alarms/10 minutes
+
+% or: alarm sequence in fixed timespan along the whole duration (fixed timespans)
+
+%  sequ_time = sequ_time_fixed( T );
+%  sequ_length = 8;            % 8 alarms/8 minutes
+
+sequ2prob = sequ2.calc_prob(sequ_time,F,sequ_length);  
+
+[sequ2prob_all, redu_sequ2prob_all] = sequ2.calc_prob_all(sequ_time,sequ2prob,F);
+
+% sort the tables so that reversal sequences '[510224 702425]' and '[702425 510224]' can be rearranged together in one row.
+% save 1.st -- 5.th column data of its reversal sequence in behind (9.th -- 13.th column)
+% if no reversal sequ found, the 9.th -- 13.th columns are left empty
+rev_redu_sequ2prob_all = sequ2.sort_reverse_sequence(redu_sequ2prob_all);
+rev_sequ2prob_all = sequ2.sort_reverse_sequence(sequ2prob_all);
+
+% "rev_sequ2prob_all" is the main result that should be used in this step
+base_sequ2 = sequ2.find_base_sequ2(rev_redu_sequ2prob_all);
+
+% find sequ (length == 3) based on "base_sequ2"
+
+sequ3prob = sequ3.calc_prob(sequ_time, base_sequ2,F);
+
+%}
+
+%% find sequences (length==2) in fixed timespan
+
+[sequOrig,sequ2prob_5,sequAllTimespan,sequLength] = findBinarySequ(T,F);
+
+
+
+% find their revesal sequences and append to the end of each row
+sequ2prob_rev = sequ2.sort_reverse_sequence(sequ2prob_5);
+sequ2prob_obv = sequ2prob_rev( abs(sequ2prob_rev.prob - sequ2prob_rev.prob_)./min(sequ2prob_rev.prob, sequ2prob_rev.prob) >= 0.5,:);
+sequ2prob_clo = sequ2prob_rev( abs(sequ2prob_rev.prob - sequ2prob_rev.prob_)./min(sequ2prob_rev.prob, sequ2prob_rev.prob) < 0.5,:);
+
+% find sequences (length==3) based on basic sequ2
+% find (length==3) sequences, which contain only alarmIDs of the "alarmIDNum" highest occurrence
+alarmIDNum = 7;
+[sequ3prob,sequ2prob_5] = findTripleSequ(T,F,sequ2prob_5,sequAllTimespan,sequLength,alarmIDNum);
+
+%% show only the sequences that consist of the 9 most frequently occurred alarmIDs 
+alarmSet = F.FehlerID(1:9);
+sequOf_3alarmIDs = sequ3prob;
+idx = zeros(height(sequ3prob),1);
+for zz1 = 1:height(sequ3prob)
+    if any(sequ3prob.sequ2_ID1(zz1) == alarmSet) && any(sequ3prob.sequ2_ID2(zz1) == alarmSet) && any(sequ3prob.single_ID(zz1) == alarmSet)
+        idx(zz1) = 1;
+    end
+end
+sequOf_3alarmIDs(idx==0,:) = [];
+
+% find length==4 sequences, which consist of only the top 9 alarmIDs in "F"
+[sequ4prob,sequ3prob] = findQuadraSequ(F,sequ3prob,sequAllTimespan,sequLength,alarmIDNum);
+
+% find length==5 sequences, which consist of only the top 9 alarmIDs in "F"
+
+sequ4prob_part = sequ4prob(sequ4prob.sequ_occur > 10,:);
+[sequ5prob,sequ4prob_part] = findPentaSequ(F,sequ4prob_part,sequAllTimespan,sequLength,alarmIDNum);
